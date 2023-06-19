@@ -10,25 +10,49 @@ function datos_balance = iterar_mes(vn, on, dn, h, dia_inicial, dia_final, numer
   od_e = 2; # g/m^3
   od_s = 9; # g/m^3
   # 20 -> 100%
-  # 17 -> 85%
+  # 10 -> 50%
 
   # Obtengo los caudales y les cambio las unidades a m^3/dia
-  qe = 86400 * caudales(numero_mes, 1);
-  qs = 86400 * caudales(numero_mes, 2);
 
   datos_balance = zeros(dia_final-dia_inicial+1, 3);
 
+  qe1 = 86400 * caudales(numero_mes, 1);
+  qs1 = 86400 * caudales(numero_mes, 2);
+
+  qe2 = qe1;
+  qs2 = qs1;
+
   for i = 1:dia_final-dia_inicial+1
-    kbd = kbd_0 * (on.^2 / (on.^2 + ko2));
-    g = ka * (od_s - on);
-    p = kbd * dn;
+    if(i == dia_final-dia_inicial+1 && numero_mes != 12)
+      qe2 = 86400 * caudales(numero_mes+1, 1); # qe(tn+1)
+      qs2 = 86400 * caudales(numero_mes+1, 2); # qs(tn+1)
+    endif
 
-    fo = ((qe * od_e - qs * on)/vn) + g - p;
-    fd = ((qe * dbo_e - qs * dn)/vn) - p;
+    if(numero_mes == 12 && i == dia_final-dia_inicial+1)
+      qe2 = 86400 * caudales(1, 1);
+      qs2 = 86400 * caudales(1, 2);
+    endif
 
-    datos_balance(i, 1) = vn + h * (qe - qs);
-    datos_balance(i, 2) = on + h * fo;
-    datos_balance(i, 3) = dn + h * fd;
+    q1v = h*(qe1 - qs1);
+    q2v = h*(qe2 - qs2);
+
+    kbd1 = kbd_0 * (on.^2 / (on.^2 + ko2));
+    g1 = ka * (od_s - on);
+    p1 = kbd1 * dn;
+
+    q1o = h*(((qe1 * od_e - qs1 * on)/vn) + g1 - p1);
+    q1d = h*(((qe1 * dbo_e - qs1 * dn)/vn) - p1);
+
+    kbd2 = kbd_0 * ((on + q1o).^2 / ((on + q1o).^2 + ko2));
+    g2 = ka * (od_s - (on + q1o));
+    p2 = kbd2 * (dn + q1d);
+
+    q2o = h*(((qe2 * od_e - qs2 * (on + q1o))/(vn + q1v)) + g2 - p2);
+    q2d = h*(((qe2 * od_e - qs2 * (on + q1o))/(vn + q1v)) - p2);
+
+    datos_balance(i, 1) = vn + ((1/2) .* (q1v + q2v));
+    datos_balance(i, 2) = on + ((1/2) .* (q1o + q2o));
+    datos_balance(i, 3) = dn + ((1/2) .* (q1d + q2d));
 
     vn = datos_balance(i, 1);
     on = datos_balance(i, 2);
@@ -72,67 +96,47 @@ endfunction
 
 h = 1; #en dias
 v0 = 264.98 * (10.^6); # V0 obtenido por ajuste, y expresado en (m^3)
-o0 = 0; # OD0 = ODe
-d0 = 0; # DBO0 = DBOe
+o0 = 0; # OD0 = OD0
+d0 = 0; # DBO0 = DBO0
 
-euler_paso_diario = iterar_12_meses(v0, o0, d0, h);
+rungekutta_paso_diario = iterar_12_meses(v0, o0, d0, h);
 
 h = 0.5;
 
-euler_paso_medio_dia = iterar_12_meses(v0, o0, d0, h);
+rungekutta_paso_medio_dia = iterar_12_meses(v0, o0, d0, h);
 
 h = 7;
 
-euler_paso_semanal = iterar_12_meses(v0, o0, d0, h);
-et_euler_semanal = abs(euler_paso_semanal(:, 2:3) - euler_paso_medio_dia(14:14:730, 2:3));
-et_euler_diario = abs(euler_paso_diario(:, 2:3) - euler_paso_medio_dia(2:2:730, 2:3));
+rungekutta_paso_semanal = iterar_12_meses(v0, o0, d0, h);
+et_rungekutta_semanal = abs(rungekutta_paso_semanal(:, 2:3) - rungekutta_paso_medio_dia(14:14:730, 2:3));
+et_rungekutta_diario = abs(rungekutta_paso_diario(:, 2:3) - rungekutta_paso_medio_dia(2:2:730, 2:3));
 
-euler_paso_diario(2:366, :) = euler_paso_diario(1:365, :); # desplazo los datos calculados
-euler_paso_diario(1, :) = [v0, o0, d0]; # coloco las condiciones iniciales en la matriz
+rungekutta_paso_diario(2:366, :) = rungekutta_paso_diario(1:365, :); # desplazo los datos calculados
+rungekutta_paso_diario(1, :) = [v0, o0, d0]; # coloco las condiciones iniciales en la matriz
 
-# Grafico de Volumen
-plot(0:365, euler_paso_diario(:, 1));
-legend("Volumen");
-title("Volumen simulado en 1 año");
-xlabel ("t (dias)");
-ylabel ("V(t)");
-hold off;
-
-print -djpeg volumen_simulado.jpg;
 
 # Graficos de concentracion con paso Diario
-plot(0:365, euler_paso_diario(:, 2));
+plot(0:365, rungekutta_paso_diario(:, 2));
 hold on;
-plot(0:365, euler_paso_diario(:, 3));
+plot(0:365, rungekutta_paso_diario(:, 3));
 legend("OD", "DBO");
 title("Concentración de OD y DBO simulado en un año");
 xlabel ("t (dias)");
 ylabel ("C(t)");
 hold off;
 
-print -djpeg euler_anual_paso_diario.jpg;
+print -djpeg rungekutta_od_minimo_4.jpg;
 
-# Grafico errores de truncamiento con paso diario
-plot(0:365, [0; et_euler_diario(:, 1)]); # grafico et OD
+# Grafico con paso semanal
+plot(1:52, rungekutta_paso_semanal(:, 2)); # grafico et OD
 hold on;
-plot(0:365, [0; et_euler_diario(:, 2)]); # grafico et DBO
-legend("Et OD", "Et DBO");
-title("Errores de truncamiento de OD y DBO con paso diario");
-xlabel ("t (dias)");
-ylabel ("Et(t)");
-hold off;
-
-print -djpeg errores_truncamiento_diario.jpg;
-
-# Grafico errores de truncamiento con paso semanal
-plot(0:52, [0; et_euler_semanal(:, 1)]); # grafico et OD
-hold on;
-plot(0:52, [0; et_euler_semanal(:, 2)]); # grafico et DBO
-legend("Et OD", "Et DBO");
-title("Error de truncamiento de OD y DBO con paso semanal");
+plot(1:52, rungekutta_paso_semanal(:, 3)); # grafico et DBO
+legend("OD", "DBO");
+title("Concentración de OD y DBO estimada con paso semanal");
 xlabel ("t (semanas)");
-ylabel ("Et(t)");
+ylabel ("C(t)");
 hold off;
 
-print -djpeg errores_truncamiento_semanal.jpg;
+print -djpeg rungekutta_anual_semanal.jpg;
+
 

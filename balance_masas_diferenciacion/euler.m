@@ -84,6 +84,7 @@ euler_paso_medio_dia = iterar_12_meses(v0, o0, d0, h);
 h = 7;
 
 euler_paso_semanal = iterar_12_meses(v0, o0, d0, h);
+
 et_euler_semanal = abs(euler_paso_semanal(:, 2:3) - euler_paso_medio_dia(14:14:730, 2:3));
 et_euler_diario = abs(euler_paso_diario(:, 2:3) - euler_paso_medio_dia(2:2:730, 2:3));
 
@@ -98,7 +99,7 @@ xlabel ("t (dias)");
 ylabel ("V(t)");
 hold off;
 
-print -djpeg volumen_simulado.jpg;
+print -djpeg volumen_simulado_euler.jpg;
 
 # Graficos de concentracion con paso Diario
 plot(0:365, euler_paso_diario(:, 2));
@@ -122,7 +123,7 @@ xlabel ("t (dias)");
 ylabel ("Et(t)");
 hold off;
 
-print -djpeg errores_truncamiento_diario.jpg;
+print -djpeg errores_truncamiento_diario_euler.jpg;
 
 # Grafico errores de truncamiento con paso semanal
 plot(0:52, [0; et_euler_semanal(:, 1)]); # grafico et OD
@@ -134,5 +135,18 @@ xlabel ("t (semanas)");
 ylabel ("Et(t)");
 hold off;
 
-print -djpeg errores_truncamiento_semanal.jpg;
+print -djpeg errores_truncamiento_semanal_euler.jpg;
+
+# Grafico con paso semanal
+plot(1:52, euler_paso_semanal(:, 2)); # grafico et OD
+hold on;
+plot(1:52, euler_paso_semanal(:, 3)); # grafico et DBO
+legend("OD", "DBO");
+title("Concentración de OD y DBO estimada con paso semanal");
+xlabel ("t (semanas)");
+ylabel ("C(t)");
+hold off;
+
+print -djpeg euler_anual_semanal.jpg;
+
 
